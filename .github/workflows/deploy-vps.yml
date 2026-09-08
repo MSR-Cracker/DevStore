@@ -1,0 +1,116 @@
+name: Deploy to VPS Manager
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build container image
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.STORAGE_GITHUB_TOKEN }}
+          GITHUB_OWNER: 0dexgeneral-sketch
+          STARS_PER_CREDIT: ${{ secrets.STARS_PER_CREDIT }}
+          SUPPORT_URL: ${{ secrets.SUPPORT_URL }}
+          DEX2C_GITHUB_TOKEN: ${{ secrets.DEX2C_GITHUB_TOKEN }}
+          DEX2C_GITHUB_OWNER: MSR-Cracker
+          DEX2C_GITHUB_REPO: Dex2C
+          DEX2C_GITHUB_BRANCH: main
+        run: |
+          set -euo pipefail
+          test -n "$BOT_TOKEN"
+          test -n "$IMGBB_API_KEY"
+          test -n "$GITHUB_TOKEN"
+          test -n "$DEX2C_GITHUB_TOKEN"
+          docker build \
+            --build-arg BOT_TOKEN="$BOT_TOKEN" \
+            --build-arg IMGBB_API_KEY="$IMGBB_API_KEY" \
+            --build-arg GITHUB_TOKEN="$GITHUB_TOKEN" \
+            --build-arg GITHUB_OWNER="$GITHUB_OWNER" \
+            --build-arg DEX2C_GITHUB_TOKEN="$DEX2C_GITHUB_TOKEN" \
+            --build-arg DEX2C_GITHUB_OWNER="$DEX2C_GITHUB_OWNER" \
+            --build-arg DEX2C_GITHUB_REPO="$DEX2C_GITHUB_REPO" \
+            --build-arg DEX2C_GITHUB_BRANCH="$DEX2C_GITHUB_BRANCH" \
+            --build-arg STARS_PER_CREDIT="${STARS_PER_CREDIT:-1}" \
+            --build-arg SUPPORT_URL="$SUPPORT_URL" \
+            -t telegram-shop:latest .
+          docker save -o app.tar telegram-shop:latest
+          ls -lh app.tar
+
+      - name: Set room .env variables
+        env:
+          VPS_MANAGER_BASE: ${{ secrets.VPS_MANAGER_BASE }}
+          VPS_MANAGER_TOKEN: ${{ secrets.VPS_MANAGER_TOKEN }}
+          VPS_MANAGER_ROOM_ID: ${{ secrets.VPS_MANAGER_ROOM_ID }}
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          STORAGE_GITHUB_TOKEN: ${{ secrets.STORAGE_GITHUB_TOKEN }}
+          GITHUB_OWNER: 0dexgeneral-sketch
+          STARS_PER_CREDIT: ${{ secrets.STARS_PER_CREDIT }}
+          SUPPORT_URL: ${{ secrets.SUPPORT_URL }}
+          DEX2C_GITHUB_TOKEN: ${{ secrets.DEX2C_GITHUB_TOKEN }}
+          DEX2C_GITHUB_OWNER: MSR-Cracker
+          DEX2C_GITHUB_REPO: Dex2C
+          DEX2C_GITHUB_BRANCH: main
+        run: |
+          set -euo pipefail
+          test -n "$VPS_MANAGER_BASE"
+          test -n "$VPS_MANAGER_TOKEN"
+          test -n "$VPS_MANAGER_ROOM_ID"
+          test -n "$BOT_TOKEN"
+          test -n "$IMGBB_API_KEY"
+          test -n "$STORAGE_GITHUB_TOKEN"
+          test -n "$DEX2C_GITHUB_TOKEN"
+          python3 - <<'PY'
+          import json, os, urllib.request
+          base = os.environ["VPS_MANAGER_BASE"].rstrip("/")
+          token = os.environ["VPS_MANAGER_TOKEN"]
+          room = os.environ["VPS_MANAGER_ROOM_ID"]
+          variables = [
+            {"key":"BOT_TOKEN","value":os.environ["BOT_TOKEN"]},
+            {"key":"IMGBB_API_KEY","value":os.environ["IMGBB_API_KEY"]},
+            {"key":"GITHUB_TOKEN","value":os.environ["STORAGE_GITHUB_TOKEN"]},
+            {"key":"GITHUB_OWNER","value":os.environ["GITHUB_OWNER"]},
+            {"key":"DEX2C_GITHUB_TOKEN","value":os.environ["DEX2C_GITHUB_TOKEN"]},
+            {"key":"DEX2C_GITHUB_OWNER","value":os.environ["DEX2C_GITHUB_OWNER"]},
+            {"key":"DEX2C_GITHUB_REPO","value":os.environ["DEX2C_GITHUB_REPO"]},
+            {"key":"DEX2C_GITHUB_BRANCH","value":os.environ["DEX2C_GITHUB_BRANCH"]},
+            {"key":"STARS_PER_CREDIT","value":os.environ.get("STARS_PER_CREDIT","1")},
+            {"key":"SUPPORT_URL","value":os.environ.get("SUPPORT_URL","")},
+            {"key":"STORAGE_REPO_PREFIX","value":"storage-"},
+            {"key":"STORAGE_MAX_BYTES","value":"4294967296"},
+            {"key":"STORAGE_SAFE_BYTES","value":"4294967296"},
+            {"key":"STORAGE_MAX_FILE_BYTES","value":"2147483648"},
+            {"key":"DATABASE_PATH","value":"/app/data/data.db"},
+            {"key":"PYTHONUNBUFFERED","value":"1"},
+          ]
+          data = json.dumps({"variables": variables}).encode()
+          req = urllib.request.Request(
+            f"{base}/api/v1/projects/{room}/env", data=data, method="POST",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+          with urllib.request.urlopen(req) as r:
+            print("env", r.status, r.read().decode())
+          PY
+
+      - name: Upload image to room
+        env:
+          VPS_MANAGER_BASE: ${{ secrets.VPS_MANAGER_BASE }}
+          VPS_MANAGER_TOKEN: ${{ secrets.VPS_MANAGER_TOKEN }}
+          VPS_MANAGER_ROOM_ID: ${{ secrets.VPS_MANAGER_ROOM_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$VPS_MANAGER_BASE"
+          test -n "$VPS_MANAGER_TOKEN"
+          test -n "$VPS_MANAGER_ROOM_ID"
+          curl --fail-with-body --request POST \
+            --header "Authorization: Bearer $VPS_MANAGER_TOKEN" \
+            --form "file=@app.tar" \
+            "$VPS_MANAGER_BASE/api/v1/projects/$VPS_MANAGER_ROOM_ID/upload"
