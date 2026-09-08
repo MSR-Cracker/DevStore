@@ -1,0 +1,10 @@
+services:
+  shop-bot:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_PATH: /app/data/data.db
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

@@ -1,0 +1,42 @@
+FROM python:3.12-slim
+
+ARG BOT_TOKEN
+ARG IMGBB_API_KEY
+ARG GITHUB_TOKEN
+ARG GITHUB_OWNER
+ARG STARS_PER_CREDIT=1
+ARG SUPPORT_URL=
+ARG DEX2C_GITHUB_TOKEN=
+ARG DEX2C_GITHUB_OWNER=
+ARG DEX2C_GITHUB_REPO=
+ARG DEX2C_GITHUB_BRANCH=main
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY bot.py ./
+COPY shopbot ./shopbot
+RUN mkdir -p /app/data && \
+    printf '%s\n' \
+      "BOT_TOKEN=$BOT_TOKEN" \
+      "IMGBB_API_KEY=$IMGBB_API_KEY" \
+      "GITHUB_TOKEN=$GITHUB_TOKEN" \
+      "GITHUB_OWNER=$GITHUB_OWNER" \
+      "STARS_PER_CREDIT=$STARS_PER_CREDIT" \
+      "SUPPORT_URL=$SUPPORT_URL" \
+      "STORAGE_REPO_PREFIX=storage-" \
+      "STORAGE_MAX_BYTES=4294967296" \
+      "STORAGE_SAFE_BYTES=4294967296" \
+      "STORAGE_MAX_FILE_BYTES=2147483648" \
+      "DEX2C_GITHUB_TOKEN=$DEX2C_GITHUB_TOKEN" \
+      "DEX2C_GITHUB_OWNER=$DEX2C_GITHUB_OWNER" \
+      "DEX2C_GITHUB_REPO=$DEX2C_GITHUB_REPO" \
+      "DEX2C_GITHUB_BRANCH=$DEX2C_GITHUB_BRANCH" \
+      "DATABASE_PATH=/app/data/data.db" > /app/.env
+
+# Mount /app/data so data.db survives container recreation.
+VOLUME ["/app/data"]
+CMD ["python", "/app/bot.py"]
