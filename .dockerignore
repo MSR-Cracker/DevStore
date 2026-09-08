@@ -1,0 +1,12 @@
+.env
+bot.env
+data.db
+data/
+bot.out.log
+bot.err.log
+images/
+stack.tar.gz
+app.tar
+__pycache__/
+*.py[cod]
+.git/
